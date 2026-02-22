@@ -5,6 +5,7 @@ import {
   ArrowLeft, Search, Filter, FileText, ExternalLink, 
   CheckCircle, Save, Download, Eye, Play, X, Terminal 
 } from 'lucide-react';
+import DocViewer, { DocViewerRenderers } from "@cyntler/react-doc-viewer";
 
 const Submissions = () => {
   const navigate = useNavigate();
@@ -15,6 +16,10 @@ const Submissions = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // New State for Document Preview
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState([]);
+
   // Filters State
   const [filters, setFilters] = useState({
     grade: 'All',
@@ -106,14 +111,28 @@ const Submissions = () => {
     setShowCodeModal(true);
   };
 
- const runCode = async () => {
+  // --- 5. DOC PREVIEW LOGIC ---
+  const openDocPreview = (filePath) => {
+    const fileName = filePath.split('/').pop();
+    const fileExtension = fileName.split('.').pop().toLowerCase();
+    const fullUrl = `http://localhost:8000/server/api/view_file.php?file=${fileName}`;
+
+    if (fileExtension === 'pdf' || fileExtension === 'png' || fileExtension === 'jpg') {
+        setSelectedDoc([{ uri: fullUrl, fileType: fileExtension }]);
+        setShowDocModal(true);
+    } else {
+        // For Word/Excel, just download it directly
+        window.open(fullUrl, '_blank');
+        alert("Word/Excel files will be downloaded for viewing.");
+    }
+};
+
+  const runCode = async () => {
     setIsExecuting(true);
     setExecutionOutput('Running on Judge0...');
 
-    // 1. Find the ID for Judge0 based on selection
     const langConfig = languages.find(l => l.alias === selectedLanguage);
 
-    // Safety check
     if (!langConfig) {
       setExecutionOutput("Error: Unsupported language selected.");
       setIsExecuting(false);
@@ -121,21 +140,17 @@ const Submissions = () => {
     }
 
     try {
-      // 2. Prepare Payload for Judge0
       const payload = {
         source_code: currentCode.content,
         language_id: langConfig.id,
-        stdin: "", // Standard input (leave empty for now)
+        stdin: "", 
       };
 
-      // 3. Send Request to Judge0 CE (Community Edition)
-      // 'wait=true' makes it wait for the result (synchronous)
       const res = await axios.post(
         'https://ce.judge0.com/submissions/?base64_encoded=false&wait=true',
         payload
       );
 
-      // 4. Handle Response
       if (res.data.stdout) {
         setExecutionOutput(res.data.stdout);
       } else if (res.data.stderr) {
@@ -150,7 +165,7 @@ const Submissions = () => {
 
     } catch (error) {
       console.error("Judge0 API Error:", error);
-      setExecutionOutput("Error: Failed to connect to compiler service. It might be overloaded.");
+      setExecutionOutput("Error: Failed to connect to compiler service.");
     } finally {
       setIsExecuting(false);
     }
@@ -262,10 +277,12 @@ const Submissions = () => {
                                 </button>
                             )}
                             {item.file_path && (
-                                /* --- FIXED LINK: Removed '/server' prefix --- */
-                                <a href={`http://localhost:8000/server/api/${item.file_path}`} target="_blank" rel="noreferrer" className="p-2 bg-blue-900/20 text-blue-400 rounded hover:bg-blue-600 hover:text-white transition-colors">
+                                <button 
+                                  onClick={() => openDocPreview(item.file_path)} 
+                                  className="p-2 bg-blue-900/20 text-blue-400 rounded hover:bg-blue-600 hover:text-white transition-colors"
+                                >
                                     <FileText size={16} />
-                                </a>
+                                </button>
                             )}
                             {item.submission_link && (
                                 <a href={item.submission_link} target="_blank" rel="noreferrer" className="p-2 bg-purple-900/20 text-purple-400 rounded hover:bg-purple-600 hover:text-white transition-colors">
@@ -306,7 +323,7 @@ const Submissions = () => {
                         </div>
                     </div>
                 )})
-)}
+            )}
             
             <div className="bg-gray-900 p-4 border-t border-gray-800 flex justify-between items-center text-sm text-gray-400">
                 <span>Showing {submissions.length} submissions</span>
@@ -344,6 +361,34 @@ const Submissions = () => {
                 </div>
             </div>
         </div>
+      )}
+
+      {/* Document Preview Modal */}
+      {showDocModal && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+              <div className="bg-white rounded-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
+                  <div className="bg-gray-100 p-4 border-b flex justify-between items-center">
+                      <span className="text-black font-bold">Document Preview</span>
+                      <button 
+                          onClick={() => setShowDocModal(false)} 
+                          className="p-2 bg-gray-200 hover:bg-red-500 hover:text-white rounded-full text-black transition-colors"
+                      >
+                          <X size={20} />
+                      </button>
+                  </div>
+                  <div className="flex-1">
+                      <DocViewer 
+                          documents={selectedDoc} 
+                          pluginRenderers={DocViewerRenderers} 
+                          theme={{
+                              primary: "#8b5cf6",
+                              secondary: "#ffffff",
+                              tertiary: "#f3f4f6",
+                          }}
+                      />
+                  </div>
+              </div>
+          </div>
       )}
 
     </div>
