@@ -1,0 +1,42 @@
+# --- Universal Ignores (Applies to Client & Server) ---
+# Dependencies (Heavy folders)
+node_modules/
+vendor/
+
+# Environment Variables (Secrets)
+.env
+.env.local
+.env.production
+
+# System Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Database & Backups (CRITICAL for marks) ---
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+*.xlsx
+
+# --- Server Side (PHP/Python) ---
+uploads/
+server/uploads/
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+logs/
+*.log
+
+# --- Client Side (React) ---
+dist/
+build/
+dist-ssr/
+*.local
+
+# Ignore the real database file with passwords
+server/config/database.php
