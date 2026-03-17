@@ -30,7 +30,7 @@ if (file_exists($db_path)) {
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ==========================================
-//  POST REQUEST: Create Assignment
+//  POST REQUEST: Create or Update Assignment
 // ==========================================
 if ($method === 'POST') {
 
@@ -41,6 +41,7 @@ if ($method === 'POST') {
         exit();
     }
 
+    $assignment_id = $_POST['id'] ?? null; // Added for edit functionality
     $faculty_id = $_POST['faculty_id'] ?? null;
     $title = $_POST['title'] ?? '';
 
@@ -95,30 +96,68 @@ if ($method === 'POST') {
         }
     }
 
-    // Insert into DB (Updated with min_marks and max_marks)
+    // Insert or Update DB
     try {
-        $sql = "INSERT INTO assignments 
-                (faculty_id, title, description, subject, grade, batch, deadline, type, attachment_path, min_marks, max_marks)
-                VALUES 
-                (:fid, :title, :desc, :sub, :grade, :batch, :dead, :type, :file, :min, :max)";
-        
-        $stmt = $conn->prepare($sql);
-        
-        $stmt->execute([
-            ':fid'   => $faculty_id,
-            ':title' => $title,
-            ':desc'  => $desc,
-            ':sub'   => $subject,
-            ':grade' => $grade,
-            ':batch' => $batch,
-            ':dead'  => $deadline,
-            ':type'  => $type,
-            ':file'  => $attachment_path,
-            ':min'   => $min_marks,  // Bound here
-            ':max'   => $max_marks   // Bound here
-        ]);
+        if ($assignment_id) {
+            // UPDATE EXISTING
+            $sql = "UPDATE assignments SET 
+                        title = :title, description = :desc, subject = :sub, 
+                        grade = :grade, batch = :batch, deadline = :dead, 
+                        type = :type, min_marks = :min, max_marks = :max";
+            
+            if ($attachment_path) {
+                $sql .= ", attachment_path = :file";
+            }
+            $sql .= " WHERE id = :id AND faculty_id = :fid";
 
-        echo json_encode(["message" => "Assignment Posted Successfully!"]);
+            $stmt = $conn->prepare($sql);
+            
+            $params = [
+                ':id'    => $assignment_id,
+                ':fid'   => $faculty_id,
+                ':title' => $title,
+                ':desc'  => $desc,
+                ':sub'   => $subject,
+                ':grade' => $grade,
+                ':batch' => $batch,
+                ':dead'  => $deadline,
+                ':type'  => $type,
+                ':min'   => $min_marks,
+                ':max'   => $max_marks
+            ];
+            
+            if ($attachment_path) {
+                $params[':file'] = $attachment_path;
+            }
+
+            $stmt->execute($params);
+            echo json_encode(["message" => "Assignment Updated Successfully!"]);
+
+        } else {
+            // INSERT NEW
+            $sql = "INSERT INTO assignments 
+                    (faculty_id, title, description, subject, grade, batch, deadline, type, attachment_path, min_marks, max_marks)
+                    VALUES 
+                    (:fid, :title, :desc, :sub, :grade, :batch, :dead, :type, :file, :min, :max)";
+            
+            $stmt = $conn->prepare($sql);
+            
+            $stmt->execute([
+                ':fid'   => $faculty_id,
+                ':title' => $title,
+                ':desc'  => $desc,
+                ':sub'   => $subject,
+                ':grade' => $grade,
+                ':batch' => $batch,
+                ':dead'  => $deadline,
+                ':type'  => $type,
+                ':file'  => $attachment_path,
+                ':min'   => $min_marks,  
+                ':max'   => $max_marks   
+            ]);
+
+            echo json_encode(["message" => "Assignment Posted Successfully!"]);
+        }
 
     } catch (PDOException $e) {
         http_response_code(500);

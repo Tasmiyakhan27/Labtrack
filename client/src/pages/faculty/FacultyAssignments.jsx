@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   FileText, Calendar, Upload, Trash2, Bell, Clock, 
-  Code, BookOpen, CheckCircle 
+  Code, BookOpen, CheckCircle, Edit 
 } from 'lucide-react';
 
 const FacultyAssignments = () => {
@@ -12,6 +12,7 @@ const FacultyAssignments = () => {
   const [loading, setLoading] = useState(true);
   
   // Form State
+  const [editId, setEditId] = useState(null); // Added for edit tracking
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -21,8 +22,8 @@ const FacultyAssignments = () => {
     deadline: '',
     type: 'Practical', 
     file: null,
-    min_marks: 0,    // Added
-    max_marks: 50   // Added
+    min_marks: 0,    
+    max_marks: 50   
   });
 
   // --- HELPER: GET USER SAFELY ---
@@ -54,6 +55,39 @@ const FacultyAssignments = () => {
     fetchAssignments();
   }, []);
 
+  // --- POPULATE FORM FOR EDITING ---
+  const handleEdit = (item) => {
+    setEditId(item.id);
+    
+    const formattedDeadline = item.deadline ? item.deadline.replace(' ', 'T').substring(0, 16) : '';
+
+    setFormData({
+      title: item.title,
+      description: item.description,
+      subject: item.subject,
+      grade: item.grade,
+      batch: item.batch,
+      deadline: formattedDeadline,
+      type: item.type,
+      file: null, 
+      min_marks: item.min_marks,
+      max_marks: item.max_marks
+    });
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // --- CANCEL EDIT ---
+  const handleCancelEdit = () => {
+    setEditId(null);
+    setFormData({
+      title: '', description: '', subject: '', 
+      grade: '1st Year', batch: 'B1', deadline: '', 
+      type: 'Practical', file: null,
+      min_marks: 0, max_marks: 50
+    });
+  };
+
   // 2. HANDLE SUBMIT
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,6 +106,9 @@ const FacultyAssignments = () => {
     }    
 
     const data = new FormData();
+    if (editId) {
+        data.append('id', editId);
+    }
     data.append('faculty_id', userId); 
     data.append('title', formData.title);
     data.append('description', formData.description);
@@ -92,19 +129,20 @@ const FacultyAssignments = () => {
     try {
       await axios.post('http://localhost:8000/server/api/faculty/assignment.php', data);
       
-      alert("Assignment Posted Successfully!");
+      alert(editId ? "Assignment Updated Successfully!" : "Assignment Posted Successfully!");
       fetchAssignments();
       
       // Reset Form
+      setEditId(null);
       setFormData({
         title: '', description: '', subject: '', 
-        grade: '1', batch: 'B1', deadline: '', 
+        grade: '1st Year', batch: 'B1', deadline: '', 
         type: 'Practical', file: null,
         min_marks: 0, max_marks: 50
       });
     } catch (err) {
       console.error(err);
-      alert("Failed to post assignment.");
+      alert(editId ? "Failed to update assignment." : "Failed to post assignment.");
     }
   };
 
@@ -141,7 +179,7 @@ const FacultyAssignments = () => {
             <div className="bg-[#111] border border-gray-800 rounded-2xl p-8 shadow-2xl">
                 <h2 className="text-2xl font-bold mb-6 flex items-center">
                     <span className="bg-blue-600 w-2 h-8 mr-4 rounded-full"></span>
-                    Create New Assignment
+                    {editId ? "Edit Assignment" : "Create New Assignment"}
                 </h2>
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -279,9 +317,18 @@ const FacultyAssignments = () => {
                         </div>
                     </div>
 
-                    <button className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-purple-900/20 transform hover:scale-[1.01]">
-                          Publish Assignment
-                    </button>
+                    {/* Form Buttons */}
+                    <div className="flex gap-4">
+                        <button type="submit" className="flex-1 bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-purple-900/20 transform hover:scale-[1.01]">
+                            {editId ? "Update Assignment" : "Publish Assignment"}
+                        </button>
+                        
+                        {editId && (
+                            <button type="button" onClick={handleCancelEdit} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-4 rounded-xl transition-all">
+                                Cancel Edit
+                            </button>
+                        )}
+                    </div>
 
                 </form>
             </div>
@@ -303,9 +350,14 @@ const FacultyAssignments = () => {
                                 <span className={`text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider font-bold ${item.type === 'Practical' ? 'border-purple-500 text-purple-500' : 'border-blue-500 text-blue-500'}`}>
                                     {item.type}
                                 </span>
-                                <button onClick={() => handleDelete(item.id)} className="text-gray-600 hover:text-red-500 transition">
-                                    <Trash2 size={16} />
-                                </button>
+                                <div className="flex gap-3">
+                                    <button onClick={() => handleEdit(item)} className="text-gray-500 hover:text-blue-400 transition">
+                                        <Edit size={16} />
+                                    </button>
+                                    <button onClick={() => handleDelete(item.id)} className="text-gray-600 hover:text-red-500 transition">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
 
                             <h4 className="font-bold text-white text-lg leading-tight mb-1">{item.title}</h4>
