@@ -339,7 +339,7 @@ const Submissions = () => {
     <div className="h-screen bg-black text-white font-sans flex flex-col relative overflow-hidden">
       
       {/* HEADER */}
-      <header className="h-14 border-b border-gray-800 flex items-center justify-between px-4 bg-gray-950 flex-shrink-0 z-40">
+      <header className="h-14 border-b border-gray-800 flex items-center justify-between px-4 bg-gray-950 shrink-0 z-40">
           <nav className="flex gap-6 text-xs font-medium text-gray-400">
             <span className="hover:text-white cursor-pointer" onClick={()=>navigate('/faculty/dashboard')}>Dashboard</span>
             <span className="hover:text-white cursor-pointer" onClick={()=>navigate('/faculty/timetable')}>Timetable </span>
@@ -351,7 +351,7 @@ const Submissions = () => {
       </header>
 
       {/* --- FILTER BAR --- */}
-      <div className="bg-[#111] py-2 px-4 border-b border-gray-800 flex flex-wrap gap-3 items-center flex-shrink-0">
+      <div className="bg-[#111] py-2 px-4 border-b border-gray-800 flex flex-wrap gap-3 items-center shrink-0">
         <div className="flex items-center gap-1 text-violet-400 font-medium text-xs mr-2">
             <Filter size={14} /> Filters:
         </div>
@@ -496,7 +496,7 @@ const Submissions = () => {
             )}
         </div>
         
-        <div className="bg-gray-900 p-2 px-4 border border-gray-700 border-t-0 rounded-b-lg flex justify-between items-center text-xs text-gray-400 flex-shrink-0 mt-2">
+        <div className="bg-gray-900 p-2 px-4 border border-gray-700 border-t-0 rounded-b-lg flex justify-between items-center text-xs text-gray-400 shrink-0 mt-2">
             <span>Showing {groupedStudents.length} students</span>
             
             <div className="flex items-center gap-4">
@@ -521,7 +521,7 @@ const Submissions = () => {
 
       {/* Code Modal */}
       {showCodeModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-100 p-4">
             <div className="bg-[#1a1a1a] border border-gray-700 rounded-xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-3 border-b border-gray-700 bg-[#111] rounded-t-xl">
                     <div className="flex items-center gap-2">
@@ -552,7 +552,7 @@ const Submissions = () => {
 
       {/* Document Preview Modal */}
       {showDocModal && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-100 p-4">
               <div className="bg-white rounded-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
                   <div className="bg-gray-100 p-3 border-b flex justify-between items-center">
                       <span className="text-black text-sm font-bold">Document Preview</span>
