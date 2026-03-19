@@ -5,6 +5,9 @@ header("Content-Type: application/json");
 
 include_once '../../config/database.php';
 
+// Keep the Indian Timezone
+date_default_timezone_set('Asia/Kolkata'); 
+
 $student_id = $_GET['student_id'] ?? '';
 $grade = $_GET['grade'] ?? '';
 $batch = $_GET['batch'] ?? '';
@@ -22,26 +25,29 @@ $response = [
 ];
 
 try {
-    
-    // We look for a lab scheduled today or in the future
-    $currentDay = date('l'); // e.g., "Monday"
+    // FIX 1: We now grab the exact Date, not just the Day of the week
+    $currentDate = date('Y-m-d'); 
     $currentTime = date('H:i:s');
     
-    // Simple logic: Find the next lab for this batch
-    $sqlTimer = "SELECT * FROM timetable 
+    // --- 1. GET NEXT LAB TODAY (Fixed to check actual DATE) ---
+    $sqlTimer = "SELECT * FROM timetables 
                  WHERE grade = :grade AND batch = :batch 
-                 AND day_of_week = :day
-                 AND start_time > :time
+                 AND date = :currentDate
+                 AND start_time > :currentTime
                  ORDER BY start_time ASC LIMIT 1";
                  
     $stmt = $conn->prepare($sqlTimer);
-    $stmt->execute([':grade' => $grade, ':batch' => $batch, ':day' => $currentDay, ':time' => $currentTime]);
+    $stmt->execute([
+        ':grade' => $grade, 
+        ':batch' => $batch, 
+        ':currentDate' => $currentDate, 
+        ':currentTime' => $currentTime
+    ]);
     
     if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        // Calculate milliseconds difference for the frontend
-        $labTime = strtotime(date('Y-m-d') . ' ' . $row['start_time']);
+        $labTime = strtotime($row['date'] . ' ' . $row['start_time']);
         $now = time();
-        $diff = $labTime - $now; // seconds
+        $diff = $labTime - $now; 
         
         $response['next_lab'] = [
             "title" => $row['subject_name'],
@@ -50,9 +56,7 @@ try {
         ];
     }
 
-    // ---------------------------------------------------------
-    // 2. GET ASSIGNMENTS OVERVIEW (For Progress Cards)
-    // ---------------------------------------------------------
+    // --- 2. GET ASSIGNMENTS OVERVIEW ---
     $sqlAssign = "
         SELECT a.title, a.deadline,
                CASE WHEN s.id IS NOT NULL THEN 'Submitted' 
@@ -68,24 +72,40 @@ try {
     $stmt->execute([':grade' => $grade, ':batch' => $batch, ':sid' => $student_id]);
     $response['assignments'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 3. GET EXAM SCORES
-    /*$sqlScores = "SELECT subject_name, score_obtained, total_score, feedback 
-                  FROM exam_scores 
-                  WHERE student_id = :sid 
-                  ORDER BY published_date DESC LIMIT 3";
+    // --- 3. GET EXAM SCORES ---
+    $sqlScores = "
+        SELECT 
+            a.subject AS subject_name, 
+            s.marks AS score_obtained, 
+            a.max_marks AS total_score, 
+            s.feedback 
+        FROM submissions s
+        JOIN assignments a ON s.assignment_id = a.id
+        WHERE s.student_id = :sid AND s.marks IS NOT NULL AND s.marks != ''
+        ORDER BY s.submitted_at DESC LIMIT 3
+    ";
+                  
     $stmt = $conn->prepare($sqlScores);
     $stmt->execute([':sid' => $student_id]);
-    $response['scores'] = $stmt->fetchAll(PDO::FETCH_ASSOC);*/
+    $response['scores'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 4. GET UPCOMING LABS LIST
-    $sqlLabs = "SELECT subject_name, subject_code, start_time, room_number, day_of_week
-                FROM timetable
+    // --- 4. GET UPCOMING LABS LIST (Fixed to only show FUTURE labs) ---
+    // This checks if the date is in the future, OR if it is today but hasn't ended yet
+    $sqlLabs = "SELECT subject_name, subject_code, start_time, room_number, day_of_week, date
+                FROM timetables
                 WHERE grade = :grade AND batch = :batch
+                AND (date > :currentDate OR (date = :currentDate AND end_time >= :currentTime))
+                ORDER BY date ASC, start_time ASC
                 LIMIT 3";
+                
     $stmt = $conn->prepare($sqlLabs);
-    $stmt->execute([':grade' => $grade, ':batch' => $batch]);
+    $stmt->execute([
+        ':grade' => $grade, 
+        ':batch' => $batch,
+        ':currentDate' => $currentDate,
+        ':currentTime' => $currentTime
+    ]);
     $response['upcoming_labs'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 
     echo json_encode(["success" => true, "data" => $response]);
 

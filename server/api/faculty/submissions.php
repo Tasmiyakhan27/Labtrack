@@ -1,7 +1,6 @@
 <?php
 // server/api/faculty/submissions.php
 
-// 1. CORS & Headers
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
@@ -29,12 +28,14 @@ try {
             exit();
         }
 
+        // --- UPDATED SQL: Added a.subject AS subject_name ---
         $sql = "SELECT 
                     s.id AS submission_id,
                     st.full_name AS student_name,
                     st.username AS roll_number,
                     st.batch,
                     a.title AS assignment_title,
+                    a.subject AS subject_name, 
                     a.min_marks,
                     a.max_marks,
                     s.submitted_at,
@@ -49,14 +50,12 @@ try {
                 JOIN students st ON s.student_id = st.id
                 WHERE a.faculty_id = :faculty_id";
 
-        // Filters
         if ($grade !== 'All') {
             $sql .= " AND st.grade = :grade";
         }
         if ($batch !== 'All') {
             $sql .= " AND st.batch = :batch";
         }
-        // Changed to LIKE for partial matching
         if ($subject !== 'All' && !empty($subject)) {
             $sql .= " AND a.subject LIKE :subject";
         }
@@ -68,7 +67,6 @@ try {
         $stmt->bindValue(':faculty_id', $faculty_id);
         if ($grade !== 'All') $stmt->bindValue(':grade', $grade);
         if ($batch !== 'All') $stmt->bindValue(':batch', $batch);
-        // Bind wildcard for partial search
         if ($subject !== 'All' && !empty($subject)) {
             $stmt->bindValue(':subject', '%' . $subject . '%');
         }

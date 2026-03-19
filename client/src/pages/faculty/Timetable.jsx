@@ -9,15 +9,23 @@ import {
 const TimetableManagement = () => {
   const navigate = useNavigate();
 
-  // --- 1. STATE MANAGEMENT (Fixes "Disappearing Data") ---
+  // --- 1. STATE MANAGEMENT ---
   const [schedule, setSchedule] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Store ID in State so it survives tab switches
   const [facultyId, setFacultyId] = useState(null);
+  
+  // Add a real-time clock to auto-hide finished classes
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // --- 2. LOAD USER ID ON MOUNT ---
+  // --- 2. REAL-TIME CLOCK EFFECT ---
+  // Updates the time every 60 seconds so old classes disappear automatically
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // --- 3. LOAD USER ID ON MOUNT ---
   useEffect(() => {
     const u1 = JSON.parse(localStorage.getItem('user'));
     const u2 = JSON.parse(localStorage.getItem('facultyUser'));
@@ -25,7 +33,6 @@ const TimetableManagement = () => {
 
     if (userObj && (userObj.id || userObj.faculty_id)) {
         const id = userObj.id || userObj.faculty_id;
-        console.log("Logged in as Faculty ID:", id); // Check Console!
         setFacultyId(id);
     } else {
         console.error("No User Found in LocalStorage");
@@ -33,8 +40,16 @@ const TimetableManagement = () => {
     }
   }, []);
 
-  // --- 3. FILTER LOGIC (Dependent on facultyId) ---
-  const mySchedule = schedule.filter(slot => String(slot.faculty_id) === String(facultyId));
+  // --- 4. FILTER LOGIC (Future/Active Only) ---
+  const mySchedule = schedule.filter(slot => {
+    // 1. Must belong to this faculty
+    if (String(slot.faculty_id) !== String(facultyId)) return false;
+
+    // 2. Hide finished practicals
+    // Combine slot date and end time into a single Date object to compare with right now
+    const slotEndDateTime = new Date(`${slot.date}T${slot.end_time}`);
+    return slotEndDateTime > currentTime;
+  });
 
   const [formData, setFormData] = useState({
     subject: '', grade: '1', batch: 'B1', room: '',
@@ -97,9 +112,8 @@ const TimetableManagement = () => {
     e.preventDefault();
     setError('');
 
-    // STRICT CHECK: Stop if ID is missing (Fixes "Saving as 1" bug)
     if (!facultyId || facultyId === 0) {
-        alert("CRITICAL ERROR: You are not logged in properly (ID is 0). Please Logout and Login again.");
+        alert("CRITICAL ERROR: You are not logged in properly. Please Logout and Login again.");
         return;
     }
 
@@ -119,7 +133,7 @@ const TimetableManagement = () => {
 
     try {
       const payload = {
-        faculty_id: facultyId, // Using State Variable
+        faculty_id: facultyId,
         subject: formData.subject,
         grade: formData.grade,
         batch: formData.batch,
@@ -152,14 +166,28 @@ const TimetableManagement = () => {
     }
   };
 
+  // --- CONSISTENT COLOR HASHING ---
   const getCardColor = (subject) => {
+    if (!subject) return 'bg-gray-600/20 border-gray-500/50 text-gray-100';
+    
     const colors = [
       'bg-blue-600/20 border-blue-500/50 text-blue-100',
       'bg-violet-600/20 border-violet-500/50 text-violet-100',
       'bg-emerald-600/20 border-emerald-500/50 text-emerald-100',
-      'bg-rose-600/20 border-rose-500/50 text-rose-100'
+      'bg-rose-600/20 border-rose-500/50 text-rose-100',
+      'bg-amber-600/20 border-amber-500/50 text-amber-100',
+      'bg-cyan-600/20 border-cyan-500/50 text-cyan-100',
+      'bg-fuchsia-600/20 border-fuchsia-500/50 text-fuchsia-100',
+      'bg-pink-600/20 border-pink-500/50 text-pink-100'
     ];
-    return colors[subject.length % colors.length];
+    
+    // Hash the subject name to guarantee the exact same color every time
+    let hash = 0;
+    for (let i = 0; i < subject.length; i++) {
+      hash = subject.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
   };
 
   return (
@@ -173,8 +201,6 @@ const TimetableManagement = () => {
             <span className="hover:text-white cursor-pointer" onClick={() => navigate('/faculty/submissions')}>Submissions</span>
             <span className="hover:text-white cursor-pointer" onClick={() => navigate('/faculty/resources')}>Resources</span>
              <span className="hover:text-white cursor-pointer" onClick={() => navigate('/faculty/analysis')}>Analysis</span>
-
-
           </nav>
           <div className="w-8 h-8 bg-violet-600 rounded-full flex items-center justify-center font-bold text-sm">
              {facultyId || '?'}
@@ -190,7 +216,7 @@ const TimetableManagement = () => {
                 <Calendar className="text-violet-500" size={32} />
                 My Timetable
               </h1>
-              <p className="text-gray-400 mt-1">Manage your schedule. (Global conflicts auto-detected)</p>
+              <p className="text-gray-400 mt-1">Manage your schedule. (Old classes clear automatically)</p>
             </div>
             <button onClick={fetchSchedule} className="text-gray-400 hover:text-white bg-gray-900 p-2 rounded-full">
               <RefreshCw size={20} />
@@ -204,7 +230,6 @@ const TimetableManagement = () => {
 
             {error && <div className="mb-4 text-red-400">{error}</div>}
             
-            {/* ALERT IF ID IS MISSING */}
             {facultyId === 0 && (
                 <div className="mb-6 bg-red-900/20 border border-red-500 text-red-200 px-4 py-3 rounded-lg">
                     ⚠️ <strong>Session Error:</strong> You are not logged in. Please Logout and Login again.
@@ -280,8 +305,8 @@ const TimetableManagement = () => {
 
           <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl mb-10">
             <div className="p-4 border-b border-gray-800 bg-gray-950/50 flex justify-between items-center">
-              <h3 className="font-semibold text-gray-200">My Weekly Schedule</h3>
-              <span className="text-xs text-gray-500 bg-gray-900 px-2 py-1 rounded border border-gray-800">{mySchedule.length} Sessions</span>
+              <h3 className="font-semibold text-gray-200">Active & Upcoming Schedule</h3>
+              <span className="text-xs text-gray-500 bg-gray-900 px-2 py-1 rounded border border-gray-800">{mySchedule.length} Sessions Pending</span>
             </div>
             
             <div className="overflow-x-auto">

@@ -28,8 +28,21 @@ const StudentDashboard = () => {
     }
     setUser(storedUser);
 
-    // Fetch Dashboard Data/api/get_student_dashboard.php
-    fetch(`http://localhost:8000/server/api/student/student_dashboard.php?student_id=${storedUser.id}&grade=${storedUser.grade}&batch=${storedUser.batch}`)
+    // --- DATA FORMATTING FIX ---
+    // Convert text like "1st Year" into "1", "2nd Year" into "2", etc.
+    let dbGrade = String(storedUser.grade || "");
+    if (dbGrade.includes("1")) dbGrade = "1";
+    else if (dbGrade.includes("2")) dbGrade = "2";
+    else if (dbGrade.includes("3")) dbGrade = "3";
+
+    // Convert text like "Batch 1" or "B1" into standard "B1"
+    let dbBatch = String(storedUser.batch || "");
+    if (dbBatch.includes("1")) dbBatch = "B1";
+    else if (dbBatch.includes("2")) dbBatch = "B2";
+    else if (dbBatch.includes("3")) dbBatch = "B3";
+
+    // Fetch Dashboard Data with corrected DB variables and cache-buster
+    fetch(`http://localhost:8000/server/api/student/student_dashboard.php?student_id=${storedUser.id}&grade=${dbGrade}&batch=${dbBatch}&t=${Date.now()}`)
       .then(res => res.json())
       .then(result => {
         if (result.success) {

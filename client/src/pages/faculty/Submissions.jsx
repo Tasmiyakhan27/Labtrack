@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import DocViewer, { DocViewerRenderers } from "@cyntler/react-doc-viewer";
 
-// --- UPDATED IMPORTS HERE ---
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -166,7 +165,6 @@ const Submissions = () => {
     }
   };
 
-  // --- DATA GROUPING ---
   const assignmentTitles = [...new Set(submissions.map(s => s.assignment_title))];
 
   const studentsMap = {};
@@ -188,7 +186,6 @@ const Submissions = () => {
   });
   const groupedStudents = Object.values(studentsMap);
 
-  // --- PDF GENERATION (FORMAT K3) ---
   const generatePDF = () => {
     try {
       const doc = new jsPDF('landscape', 'mm', 'a4');
@@ -202,7 +199,12 @@ const Submissions = () => {
       doc.text("Maharashtra State Board of Technical Education", 148, 22, { align: "center" });
       doc.text("FORMATIVE ASSESSMENT OF PRACTICAL (FA-PR)", 148, 28, { align: "center" });
 
-      // Meta Details Form
+      // --- BACKEND DATA EXTRACTION ---
+      // Get the unique subject from the actual fetched submissions
+      const uniqueSubjects = [...new Set(submissions.map(s => s.subject_name).filter(Boolean))];
+      // If only one subject is returned, use it. Otherwise fallback to the filter or blank.
+      const displaySubject = uniqueSubjects.length === 1 ? uniqueSubjects[0] : (filters.subject !== 'All' ? filters.subject : '___________________');
+
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       
@@ -214,47 +216,44 @@ const Submissions = () => {
       doc.text(`Exam: Winter / Summer...................`, 185, startY + 8);
 
       doc.text(`Programme: _____________________`, 14, startY + 16);
-      doc.text(`Course: ${filters.subject !== 'All' ? filters.subject : '___________________'}`, 105, startY + 16);
+      doc.text(`Course: ${displaySubject}`, 105, startY + 16); // <-- USING BACKEND SUBJECT HERE
       doc.text(`Course Code: __________________`, 185, startY + 16);
       
       doc.text(`Maximum Marks: _________________`, 105, startY + 24);
       doc.text(`Minimum Marks: _________________`, 185, startY + 24);
 
-      // Limit to exactly 12 columns to match the Format K3 Image
-      const exps = assignmentTitles.slice(0, 12);
+      const exps = assignmentTitles;
+      const numExps = exps.length > 0 ? exps.length : 1; 
 
-      // Table Header Structure matching the image
-      const tableColumn = [
-        [
-          { content: 'Roll\nNo.', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'Enroll\nment\nNo.', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'Exam\nSeat\nNumber', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'Name of\nthe\nStudent', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'Experiment / Practical / Tutorial\n(Marks out of 25 per Experiment)', colSpan: 12, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'Total\nMarks\n(25 x\nNo. of\nExpt.)', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'FA Marks of\nPractical\nConverted\naccording to\nL-A Scheme\n(Max\nMarks......)', rowSpan: 2, styles: { halign: 'center', valign: 'middle', fontSize: 8 } },
-          { content: 'Signature\nof\nStudent', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
-        ],
-        // Row 2: Experiment Numbers
-        ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
-        // Row 3: Grey Numbering Row
-        [
-          { content: '1', styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '2', styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '3', styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '4', styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '5', colSpan: 12, styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '6', styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '7', styles: { halign: 'center', fillColor: [230,230,240] } },
-          { content: '', styles: { halign: 'center', fillColor: [230,230,240] } } 
-        ]
+      const headerRow1 = [
+        { content: 'Roll\nNo.', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'Enroll\nment\nNo.', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'Exam\nSeat\nNumber', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'Name of\nthe\nStudent', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'Experiment / Practical / Tutorial\n(Marks out of 25 per Experiment)', colSpan: numExps, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'Total\nMarks\n(25 x\nNo. of\nExpt.)', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'FA Marks of\nPractical\nConverted\naccording to\nL-A Scheme\n(Max\nMarks......)', rowSpan: 2, styles: { halign: 'center', valign: 'middle', fontSize: 8 } },
+        { content: 'Signature\nof\nStudent', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
       ];
 
+      const headerRow2 = exps.length > 0 ? exps.map((_, i) => (i + 1).toString()) : ['1'];
+
+      const headerRow3 = [
+        { content: '1', styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '2', styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '3', styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '4', styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '5', colSpan: numExps, styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '6', styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '7', styles: { halign: 'center', fillColor: [230,230,240] } },
+        { content: '', styles: { halign: 'center', fillColor: [230,230,240] } } 
+      ];
+
+      const tableColumn = [headerRow1, headerRow2, headerRow3];
       const tableRows = [];
 
-      // Table Data
       groupedStudents.forEach(student => {
-        let marksArray = Array(12).fill('');
+        let marksArray = Array(numExps).fill('');
         let totalMarks = 0;
 
         exps.forEach((title, index) => {
@@ -277,17 +276,16 @@ const Submissions = () => {
 
         tableRows.push([
           student.roll_number,
-          '', // Enroll No
-          '', // Exam Seat
+          '', 
+          '', 
           student.student_name,
           ...marksArray,
           totalMarks > 0 ? totalMarks.toString() : '',
-          '', // FA Converted
-          ''  // Signature
+          '', 
+          ''  
         ]);
       });
 
-      // --- EXPLICIT AUTOTABLE CALL HERE ---
       autoTable(doc, {
         head: tableColumn,
         body: tableRows,
@@ -315,9 +313,9 @@ const Submissions = () => {
            1: { cellWidth: 15 }, 
            2: { cellWidth: 15 }, 
            3: { cellWidth: 35, halign: 'left' }, 
-           16: { cellWidth: 12 }, 
-           17: { cellWidth: 20 }, 
-           18: { cellWidth: 20 }, 
+           [4 + numExps]: { cellWidth: 12 }, 
+           [4 + numExps + 1]: { cellWidth: 20 }, 
+           [4 + numExps + 2]: { cellWidth: 20 }, 
         },
         margin: { left: 14, right: 14 }
       });
@@ -327,7 +325,9 @@ const Submissions = () => {
       doc.setFont("helvetica", "bold");
       doc.text("Note: Fractional marks shall be rounded to next full number.", 14, finalY + 6);
 
-      doc.save(`LabTrack_Format_K3_${filters.subject !== 'All' ? filters.subject : 'Report'}.pdf`);
+      // Give the downloaded PDF file a smart name based on the subject
+      const safeSubjectName = displaySubject.replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`LabTrack_Format_K3_${safeSubjectName}.pdf`);
       
     } catch (error) {
       console.error("PDF Generation Error: ", error);
