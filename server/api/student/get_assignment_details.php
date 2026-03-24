@@ -25,7 +25,7 @@ try {
     }
 
     // B. GUARD 1: IP CHECK (Is the student in the lab?)
-    $ALLOWED_NETWORKS = ['192.168.1.8', '127.0.0.1', '::1']; 
+    $ALLOWED_NETWORKS = [ '127.0.0.1', '::1']; 
     $userIP = $_SERVER['REMOTE_ADDR'];
 
     $is_lab_ip = false;

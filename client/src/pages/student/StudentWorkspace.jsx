@@ -7,7 +7,7 @@ const StudentWorkspace = () => {
   const navigate = useNavigate();
 
   // Your IPv4 address
-  const API_BASE_URL = "http://192.168.1.8:8000";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [assignment, setAssignment] = useState(null);
   const [user, setUser] = useState(null);
