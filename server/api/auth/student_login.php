@@ -4,6 +4,7 @@
 // 1. LOAD LIBRARIES & CONFIG
 require '../../vendor/autoload.php'; // Load Composer (for JWT)
 require '../../config/database.php'; // Load Database Connection
+//require '../../middleware/auth.php'; // Load Auth Middleware (for token verification)
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -49,13 +50,20 @@ try {
             // --- LOGIN SUCCESS ---
 
             // 6. GENERATE JWT TOKEN
-            // This key MUST match the one used in Faculty Login for consistency
-            $secret_key = "ADMIN_2025"; 
+            // CRITICAL FOR DEPLOYMENT: Use Environment Variables, NOT hardcoded strings!
+            // This MUST match the key your auth.php middleware uses to decode.
+        $secret_key = getenv("SECRET_KEY") ?: "labtrack_internal_signing_key_2026"; // For production, use getenv('HOD_SECRET_CODE') or similar to fetch from env
+            if (!$secret_key) {
+                http_response_code(500);
+                echo json_encode(["success" => false, "message" => "Server Configuration Error: Missing Secret Key."]);
+                exit();
+            }
+
             $issued_at = time();
             $expiration = $issued_at + (60 * 60 * 24); // Valid for 24 hours
 
             $payload = array(
-                "iss" => "localhost",
+                "iss" => "localhost", // Consider updating to your college domain on deployment
                 "iat" => $issued_at,
                 "exp" => $expiration,
                 "data" => array(
@@ -80,7 +88,8 @@ try {
                     "full_name" => $row['full_name'],
                     "enrollment_no" => $row['username'],
                     "grade" => $row['grade'],
-                    "batch" => $row['batch']
+                    "batch" => $row['batch'],
+                    "role" => "student" // Added for frontend permission routing
                 )
             ));
 
@@ -97,6 +106,7 @@ try {
 } catch (Exception $e) {
     // Database or Server Error
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Server Error: " . $e->getMessage()]);
+    // Generic error message for security (don't leak database info)
+    echo json_encode(["success" => false, "message" => "Server Error occurred during login."]);
 }
 ?>

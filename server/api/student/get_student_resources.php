@@ -1,9 +1,25 @@
 <?php
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Content-Type: application/json");
+// --- UPDATED: Added Authorization to allowed headers ---
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+// --- NEW: Handle Preflight Requests for CORS ---
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
 
 include_once '../../config/database.php';
+
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN ---
+// We don't necessarily need the user's ID for this specific query, 
+// but calling verifyToken() ensures the requester is genuinely logged in.
+$userData = verifyToken(); 
 
 // 1. Get Student Grade from URL (e.g. ?grade=2nd Year)
 $grade = $_GET['grade'] ?? '';
@@ -31,6 +47,8 @@ try {
     echo json_encode(["success" => true, "data" => $resources]);
 
 } catch (PDOException $e) {
-    echo json_encode(["success" => false, "message" => "DB Error: " . $e->getMessage()]);
+    http_response_code(500);
+    // Generic error message for security
+    echo json_encode(["success" => false, "message" => "DB Error occurred."]);
 }
 ?>

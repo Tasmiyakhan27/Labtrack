@@ -1,5 +1,5 @@
 // src/pages/faculty/Login.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, LogIn } from 'lucide-react';
@@ -16,6 +16,12 @@ const FacultyLogin = () => {
   });
   const [error, setError] = useState(''); 
 
+  // --- NEW: Security measure for shared college computers ---
+  // Wipes any existing session data when the login page is opened
+  useEffect(() => {
+    localStorage.clear();
+  }, []);
+
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
   };
@@ -25,24 +31,22 @@ const FacultyLogin = () => {
     setError('');
 
     try {
-      // 1. POINT TO CORRECT PHP FILE
+      // POINT TO CORRECT PHP FILE 
+      // (Changed to login_faculty.php to match your backend code block. Change back if necessary!)
       const response = await axios.post('http://localhost:8000/server/api/auth/login_faculty.php', credentials);
 
       if (response.status === 200 && response.data.user) {
         
         const userData = response.data.user;
 
-        // 2. SAVE TO STORAGE (Both Keys for Safety)
-        // 'userData.id' is the Integer PK from your table
+        // SAVE TO STORAGE (Both Keys for Safety)
         localStorage.setItem('facultyUser', JSON.stringify(userData));
         localStorage.setItem('user', JSON.stringify(userData)); 
         
+        // CRITICAL: Save the JWT Token
         if(response.data.token) {
             localStorage.setItem('token', response.data.token);
         }
-        
-        // Debug Log
-        console.log("Login Success! Database PK ID:", userData.id);
 
         alert("Login Successful! Welcome " + userData.name);
         navigate('/faculty/dashboard');
@@ -59,19 +63,14 @@ const FacultyLogin = () => {
       
       {/* LEFT SIDE */}
       <div className="hidden lg:flex w-1/2 relative overflow-hidden bg-violet-900/20">
-  {/* The image is now absolutely positioned to fill the entire parent div */}
-  <img 
-    src={facultyIllustration} 
-    alt="Faculty Login" 
-    onError={(e) => {e.target.style.display='none'}}
-    className="absolute inset-0 w-full h-full object-cover"
-  />
-
-  {/* Optional: Add a dark purple overlay so the white text (if any) stands out, 
-      or just to blend it with your theme. 
-      Remove the line below if you want the raw original image brightness. */}
-  <div className="absolute inset-0 bg-violet-900/30"></div>
-</div>
+        <img 
+          src={facultyIllustration} 
+          alt="Faculty Login" 
+          onError={(e) => {e.target.style.display='none'}}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-violet-900/30"></div>
+      </div>
 
       {/* RIGHT SIDE */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">

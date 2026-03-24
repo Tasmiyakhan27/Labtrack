@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // --- NEW: Imported for auth redirects
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, ShieldAlert } from 'lucide-react';
 
 const ImportStudents = () => {
+  const navigate = useNavigate(); // --- NEW: Added for navigation
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState({ type: '', message: '' });
   const [user, setUser] = useState(null);
@@ -36,17 +38,30 @@ const ImportStudents = () => {
     const formData = new FormData();
     formData.append('file', file);
     
-    // 3. SEND ID TO BACKEND: This allows the PHP script to check if role === 'hod'
+    // 3. SEND ID TO BACKEND: uploader_id is sent but PHP will prioritize the JWT token
     formData.append('uploader_id', user.id); 
 
     setStatus({ type: 'loading', message: 'Verifying permissions and processing data...' });
 
     try {
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+
       const response = await fetch('http://localhost:8000/server/api/faculty/import_students.php', {
         method: 'POST',
+        headers: {
+            // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+            'Authorization': `Bearer ${token}`
+        },
         body: formData,
       });
       
+      // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+      if (response.status === 401) {
+          navigate('/login/faculty');
+          return;
+      }
+
       const result = await response.json();
       
       if (result.success) {

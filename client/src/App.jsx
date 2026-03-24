@@ -12,7 +12,7 @@ import FacultyDashboard from './pages/faculty/Dashboard';
 import TimetableManagement from './pages/faculty/timetable';
 //import FacultyAssignments from './pages/faculty/assignments';
 import FacultyAssignments from './pages/faculty/FacultyAssignments';
-import Submissions from './pages/faculty/submissions';
+import Submissions from './pages/faculty/Submissions';
 import FacultyResources from './pages/faculty/FacultyResources';
 import AnalysisDashboard from './pages/faculty/Analysis';
 import ImportStudents from './pages/faculty/ImportStudents';

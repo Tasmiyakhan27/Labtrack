@@ -13,16 +13,29 @@ const StudentAssignments = () => {
   // 1. Fetch Assignments on Load
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('studentUser'));
+    // --- NEW: GET TOKEN ---
+    const token = localStorage.getItem('token');
     
-    // Redirect if not logged in
-    if (!user) {
+    // Redirect if not logged in or missing token
+    if (!user || !token) {
       navigate('/student/login');
       return;
     }
 
-    // Call the  Backend Script
-    fetch(`http://localhost:8000/server/api/student/get_student_assignments.php?student_id=${user.id}&grade=${user.grade}&batch=${user.batch}`)
-      .then(res => res.json())
+    // Call the Backend Script with Authorization Headers
+    fetch(`http://localhost:8000/server/api/student/get_student_assignments.php?student_id=${user.id}&grade=${user.grade}&batch=${user.batch}`, {
+      headers: {
+        'Authorization': `Bearer ${token}` // --- SECURED ---
+      }
+    })
+      .then(res => {
+        // --- NEW: Handle expired tokens by redirecting to login ---
+        if (res.status === 401) {
+            navigate('/student/login');
+            throw new Error("Session expired.");
+        }
+        return res.json();
+      })
       .then(result => {
         if (result.success) {
           setAssignments(result.data);

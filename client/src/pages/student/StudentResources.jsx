@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // --- NEW: Added for redirects
 import { FileText, Link as LinkIcon, Download, ExternalLink, Search, BookOpen } from 'lucide-react';
 
 const StudentResources = () => {
+  const navigate = useNavigate(); // --- NEW ---
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -10,10 +12,24 @@ const StudentResources = () => {
   useEffect(() => {
     // Get logged-in user from LocalStorage
     const user = JSON.parse(localStorage.getItem('studentUser'));
+    // --- NEW: GET TOKEN ---
+    const token = localStorage.getItem('token');
     
-    if (user && user.grade) {
-      fetch(`http://localhost:8000/server/api/student/get_student_resources.php?grade=${user.grade}`)
-        .then(res => res.json())
+    if (user && user.grade && token) {
+      // --- UPDATED: Added Authorization Header ---
+      fetch(`http://localhost:8000/server/api/student/get_student_resources.php?grade=${user.grade}`, {
+          headers: {
+              'Authorization': `Bearer ${token}`
+          }
+      })
+        .then(res => {
+            // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+            if (res.status === 401) {
+                navigate('/student/login');
+                throw new Error("Session expired.");
+            }
+            return res.json();
+        })
         .then(data => {
           if (data.success) {
             setResources(data.data);
@@ -23,8 +39,9 @@ const StudentResources = () => {
         .finally(() => setLoading(false));
     } else {
       setLoading(false); // No user found
+      navigate('/student/login'); // Redirect to login
     }
-  }, []);
+  }, [navigate]); // Added navigate to dependency array
 
   // 2. Filter Logic (Search Bar)
   const filteredResources = resources.filter(item => 

@@ -1,7 +1,8 @@
 <?php
 // server/api/auth/login.php
-require '../../vendor/autoload.php'; 
-require '../../config/database.php';
+require_once '../../vendor/autoload.php'; 
+require_once '../../config/database.php';
+
 
 use Firebase\JWT\JWT;
 
@@ -23,7 +24,7 @@ if (empty($data->email) || empty($data->password)) {
     exit();
 }
 
-// 1. QUERY BASED ON YOUR TABLE STRUCTURE
+// 1. QUERY BASED ON YOUR TABLE STRUCTURE (Safe from SQL Injection)
 $query = "SELECT id, faculty_id, full_name, email, password_hash, department, role 
           FROM faculty 
           WHERE email = :email 
@@ -38,36 +39,43 @@ if ($stmt->rowCount() > 0) {
     // 2. VERIFY PASSWORD
     if (password_verify($data->password, $row['password_hash'])) {
         
-        // JWT Config
-        $secret_key = "ADMIN_2025"; 
+        // --- JWT CONFIGURATION ---
+        // CRITICAL FOR DEPLOYMENT: Ensure 'HOD_SECRET_CODE' is set in your server's Environment Variables
+        $secret_key = getenv("SECRET_KEY") ?: "labtrack_internal_signing_key_2026"; // For production, use getenv('HOD_SECRET_CODE') or similar to fetch from env
+        if (!$secret_key) {
+             http_response_code(500);
+             echo json_encode(["message" => "Server Configuration Error: Missing Secret Key."]);
+             exit();
+        }
+
         $issuedat_claim = time(); 
-        $expire_claim = $issuedat_claim + 3600; 
+        $expire_claim = $issuedat_claim + 3600; // Token valid for 1 hour
         
         $token_payload = array(
-            "iss" => "localhost",
+            "iss" => "localhost", // Change this to your college domain when deploying
             "iat" => $issuedat_claim,
             "exp" => $expire_claim,
             "data" => array(
-                "id" => $row['id'],           // The Integer ID (Primary Key)
+                "id" => $row['id'],           // The Integer ID (Primary Key) - Used securely by APIs
                 "name" => $row['full_name'],
                 "email" => $row['email'],
                 "role" => $row['role']
             )
         );
 
+        // Generate the Token
         $jwt = JWT::encode($token_payload, $secret_key, 'HS256');
 
         http_response_code(200);
         
-        // 3. RETURN USER OBJECT
-        // We explicitly map 'id' to the Integer ID because that's what Timetable needs.
+        // 3. RETURN USER OBJECT & TOKEN
         echo json_encode(array(
             "success" => true,
             "message" => "Login successful.",
             "token" => $jwt,
             "user" => array(
-                "id" => $row['id'],             // INTEGER (Primary Key) - Used for Database Links
-                "faculty_id" => $row['faculty_id'], // STRING (Employee ID) - Used for Display
+                "id" => $row['id'],             
+                "faculty_id" => $row['faculty_id'], 
                 "name" => $row['full_name'],
                 "email" => $row['email'],
                 "department" => $row['department'],

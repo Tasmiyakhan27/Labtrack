@@ -22,8 +22,12 @@ const StudentDashboard = () => {
   // 1. Load User & Fetch Data on Mount
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('studentUser'));
-    if (!storedUser) {
-      navigate('/'); // Redirect if not logged in
+    // --- NEW: GET TOKEN ---
+    const token = localStorage.getItem('token');
+
+    // --- UPDATED: Check for both user AND token ---
+    if (!storedUser || !token) {
+      navigate('/student/login'); // Redirect if not logged in
       return;
     }
     setUser(storedUser);
@@ -41,9 +45,20 @@ const StudentDashboard = () => {
     else if (dbBatch.includes("2")) dbBatch = "B2";
     else if (dbBatch.includes("3")) dbBatch = "B3";
 
-    // Fetch Dashboard Data with corrected DB variables and cache-buster
-    fetch(`http://localhost:8000/server/api/student/student_dashboard.php?student_id=${storedUser.id}&grade=${dbGrade}&batch=${dbBatch}&t=${Date.now()}`)
-      .then(res => res.json())
+    // Fetch Dashboard Data with Authorization Header
+    fetch(`http://localhost:8000/server/api/student/student_dashboard.php?grade=${dbGrade}&batch=${dbBatch}&t=${Date.now()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}` // --- SECURED ---
+      }
+    })
+      .then(res => {
+        // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+        if (res.status === 401) {
+            navigate('/student/login');
+            throw new Error("Session expired");
+        }
+        return res.json();
+      })
       .then(result => {
         if (result.success) {
           setAssignments(result.data.assignments);
@@ -106,8 +121,11 @@ const StudentDashboard = () => {
     }
   };
 
+  // --- UPDATED: Ensure all session data is cleared on logout ---
   const handleLogout = () => {
     localStorage.removeItem('studentUser');
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
     navigate('/login/student');
   };
 

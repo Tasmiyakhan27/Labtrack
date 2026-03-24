@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 
@@ -8,6 +8,11 @@ const StudentLogin = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  // --- NEW: Security measure for shared college computers ---
+  useEffect(() => {
+    localStorage.clear();
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -24,17 +29,18 @@ const StudentLogin = () => {
       const data = await response.json();
 
       if (data.success) {
-        // --- 1. CLEANUP OLD SESSIONS (The Fix) ---
-        // Remove any leftover Faculty data to prevent role mixing
+        // --- 1. CLEANUP OLD SESSIONS ---
         localStorage.removeItem('facultyUser');
-        localStorage.removeItem('user'); // Remove generic user key if it exists
+        localStorage.removeItem('user'); 
         localStorage.removeItem('token');
 
         // --- 2. SAVE NEW STUDENT SESSION ---
         localStorage.setItem('studentUser', JSON.stringify(data.user));
         
-        // Optional: If you use a generic 'user' key for shared components, set it now:
-        // localStorage.setItem('user', JSON.stringify(data.user)); 
+        // --- NEW: CRITICAL - SAVE THE TOKEN ---
+        if(data.token) {
+            localStorage.setItem('token', data.token);
+        }
 
         navigate('/student/dashboard');
       } else {

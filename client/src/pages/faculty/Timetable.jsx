@@ -60,12 +60,25 @@ const TimetableManagement = () => {
   const fetchSchedule = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:8000/server/api/faculty/timetable.php');
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      const res = await axios.get('http://localhost:8000/server/api/faculty/timetable.php', {
+          headers: {
+              'Authorization': `Bearer ${token}`
+          }
+      });
       setSchedule(Array.isArray(res.data) ? res.data : []);
       setError('');
     } catch (err) {
       console.error(err);
-      setError("Failed to load timetable.");
+      // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+      if (err.response && err.response.status === 401) {
+          navigate('/login/faculty');
+      } else {
+          setError("Failed to load timetable.");
+      }
     } finally {
       setLoading(false);
     }
@@ -144,7 +157,15 @@ const TimetableManagement = () => {
         room: formData.room
       };
 
-      const res = await axios.post('http://localhost:8000/server/api/faculty/timetable.php', payload);
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      const res = await axios.post('http://localhost:8000/server/api/faculty/timetable.php', payload, {
+          headers: {
+              'Authorization': `Bearer ${token}`
+          }
+      });
       
       if (res.status === 200) {
         alert("Class slot added successfully!");
@@ -152,17 +173,33 @@ const TimetableManagement = () => {
         setFormData({ ...formData, subject: '', room: '' });
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Server Error");
+      if (err.response && err.response.status === 401) {
+          navigate('/login/faculty');
+      } else {
+          setError(err.response?.data?.message || "Server Error");
+      }
     }
   };
 
   const handleDelete = async (id) => {
     if(!window.confirm("Delete this slot?")) return;
     try {
-      await axios.delete(`http://localhost:8000/server/api/faculty/timetable.php?id=${id}`);
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      await axios.delete(`http://localhost:8000/server/api/faculty/timetable.php?id=${id}`, {
+          headers: {
+              'Authorization': `Bearer ${token}`
+          }
+      });
       fetchSchedule(); 
     } catch (err) {
-      alert("Failed to delete slot.");
+      if (err.response && err.response.status === 401) {
+          navigate('/login/faculty');
+      } else {
+          alert("Failed to delete slot.");
+      }
     }
   };
 

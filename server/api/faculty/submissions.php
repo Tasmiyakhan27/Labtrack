@@ -12,23 +12,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 include_once '../../config/database.php';
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$verified_faculty_id = $userData->id; 
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
     if ($method === 'GET') {
         
-        $faculty_id = isset($_GET['faculty_id']) ? $_GET['faculty_id'] : null;
+        // We no longer take faculty_id from $_GET for security
         $grade      = isset($_GET['grade']) ? $_GET['grade'] : 'All';
         $batch      = isset($_GET['batch']) ? $_GET['batch'] : 'All';
         $subject    = isset($_GET['subject']) ? trim($_GET['subject']) : 'All';
 
-        if (!$faculty_id) {
-            echo json_encode(["error" => "Faculty ID is required"]);
-            exit();
-        }
-
-        // --- UPDATED SQL: Added a.subject AS subject_name ---
+        // --- UPDATED SQL: Uses $verified_faculty_id ---
         $sql = "SELECT 
                     s.id AS submission_id,
                     st.full_name AS student_name,
@@ -64,7 +65,9 @@ try {
 
         $stmt = $conn->prepare($sql);
 
-        $stmt->bindValue(':faculty_id', $faculty_id);
+        // --- BIND THE VERIFIED ID FROM TOKEN ---
+        $stmt->bindValue(':faculty_id', $verified_faculty_id);
+        
         if ($grade !== 'All') $stmt->bindValue(':grade', $grade);
         if ($batch !== 'All') $stmt->bindValue(':batch', $batch);
         if ($subject !== 'All' && !empty($subject)) {
@@ -107,6 +110,7 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(["error" => "Database Error: " . $e->getMessage()]);
+    // Generic error message for deployment security
+    echo json_encode(["error" => "Database Error occurred."]);
 }
 ?>

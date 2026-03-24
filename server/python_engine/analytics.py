@@ -3,8 +3,14 @@ import json
 import pandas as pd
 import os
 import re
+import warnings
 from sqlalchemy import create_engine
 from urllib.parse import quote_plus  # <--- IMPORT THIS
+
+# --- NEW: PREVENT OUTPUT POLLUTION ---
+# This ensures ONLY the JSON string is printed to the terminal/PHP
+warnings.filterwarnings("ignore") 
+sys.stderr = open(os.devnull, 'w')
 
 # --- 1. FUNCTION TO READ CREDENTIALS FROM PHP FILE ---
 def get_db_credentials(php_file_path):

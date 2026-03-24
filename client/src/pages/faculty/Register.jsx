@@ -22,7 +22,6 @@ const FacultyRegister = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    // Clear error when user types to improve UX
     if(error) setError('');
   };
 
@@ -30,19 +29,9 @@ const FacultyRegister = () => {
     e.preventDefault();
     setError('');
 
-    // --- SECURITY CHECKPOINT ---
-    // 1. Check HOD Key
-    if (formData.role === 'hod' && formData.secretCode !== 'ADMIN123') {
-        setError(" Invalid HOD Key. Authorization failed.");
-        return;
-    }
-
-    // 2. Check Faculty Key
-    if (formData.role === 'faculty' && formData.secretCode !== 'FACULTY123') {
-        setError(" Invalid Faculty Key. Students are not allowed here.");
-        return;
-    }
-    // ---------------------------
+    // --- SECURED: Removed hardcoded frontend passwords. ---
+    // The frontend should NEVER know the secret passwords. 
+    // It just passes the user's input to the PHP backend to verify.
 
     // Prepare Payload
     const payload = {
@@ -52,7 +41,7 @@ const FacultyRegister = () => {
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        secret_code: formData.secretCode // Send code to backend for double-verification
+        secret_code: formData.secretCode 
     };
 
     try {
@@ -68,6 +57,7 @@ const FacultyRegister = () => {
         alert("✅ Registration Successful! Please Login.");
         navigate('/login/faculty');
       } else {
+        // This will display the specific 403 Forbidden message from the PHP script
         setError(data.message || "Registration failed");
       }
     } catch (err) {
@@ -82,10 +72,10 @@ const FacultyRegister = () => {
       {/* LEFT SIDE: Illustration */}
       <div className="hidden lg:flex w-1/2 bg-violet-900/20 items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute w-[500px] h-[500px] bg-violet-600/20 rounded-full blur-3xl"></div>
-        {/* Make sure this image exists in your assets folder */}
         <img 
           src={facultyIllustration} 
           alt="Faculty Workspace" 
+          onError={(e) => {e.target.style.display='none'}}
           className="relative z-10 w-full max-w-md object-contain drop-shadow-2xl rounded-2xl"
         />
         <div className="absolute bottom-10 text-center px-10 text-gray-400 text-sm">
@@ -218,7 +208,7 @@ const FacultyRegister = () => {
                 ? 'bg-yellow-900/10 border-yellow-600/50' 
                 : 'bg-violet-900/10 border-violet-600/50'
             }`}>
-                <label className={`block text-xs font-bold uppercase mb-2 items-center ${
+                <label className={`block text-xs font-bold uppercase mb-2 items-center flex ${
                     formData.role === 'hod' ? 'text-yellow-500' : 'text-violet-400'
                 }`}>
                     <KeyRound size={14} className="mr-2"/> 

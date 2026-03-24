@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// 3. Database Connection
+// 3. Database Connection & Middleware
 $db_path = __DIR__ . '/../../config/database.php';
 
 if (file_exists($db_path)) {
@@ -26,6 +26,13 @@ if (file_exists($db_path)) {
     // Fallback if config is missing
     require_once __DIR__ . '/../../db_connect.php'; 
 }
+
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$verified_faculty_id = $userData->id; 
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -42,15 +49,9 @@ if ($method === 'POST') {
     }
 
     $assignment_id = $_POST['id'] ?? null; // Added for edit functionality
-    $faculty_id = $_POST['faculty_id'] ?? null;
+    // We no longer trust $_POST['faculty_id']. We use the verified token ID.
     $title = $_POST['title'] ?? '';
 
-    if (!$faculty_id) {
-        http_response_code(403);
-        echo json_encode(["error" => "Session Error: User ID missing. Log out and back in."]);
-        exit();
-    }
-    
     // Validate Required Fields
     if (!$title) {
         http_response_code(400);
@@ -66,7 +67,7 @@ if ($method === 'POST') {
     $deadline = $_POST['deadline'] ?? date('Y-m-d H:i:s');
     $type = $_POST['type'] ?? 'Practical';
 
-    // --- NEW: Get Min/Max Marks ---
+    // Get Min/Max Marks
     $min_marks = isset($_POST['min_marks']) ? (int)$_POST['min_marks'] : 0;
     $max_marks = isset($_POST['max_marks']) ? (int)$_POST['max_marks'] : 100;
 
@@ -108,13 +109,14 @@ if ($method === 'POST') {
             if ($attachment_path) {
                 $sql .= ", attachment_path = :file";
             }
+            // Ensure they only update their own assignment
             $sql .= " WHERE id = :id AND faculty_id = :fid";
 
             $stmt = $conn->prepare($sql);
             
             $params = [
                 ':id'    => $assignment_id,
-                ':fid'   => $faculty_id,
+                ':fid'   => $verified_faculty_id, // SECURED
                 ':title' => $title,
                 ':desc'  => $desc,
                 ':sub'   => $subject,
@@ -143,7 +145,7 @@ if ($method === 'POST') {
             $stmt = $conn->prepare($sql);
             
             $stmt->execute([
-                ':fid'   => $faculty_id,
+                ':fid'   => $verified_faculty_id, // SECURED
                 ':title' => $title,
                 ':desc'  => $desc,
                 ':sub'   => $subject,
@@ -169,14 +171,13 @@ if ($method === 'POST') {
 //  GET REQUEST: Fetch Assignments
 // ==========================================
 elseif ($method === 'GET') {
-    $faculty_id = $_GET['faculty_id'] ?? 1;
-    
-    // Select * will now automatically include min_marks and max_marks if you ran the SQL ALTER command
+    // We no longer trust $_GET['faculty_id']
     $sql = "SELECT * FROM assignments WHERE faculty_id = ? ORDER BY deadline ASC";
     
     try {
         $stmt = $conn->prepare($sql);
-        $stmt->execute([$faculty_id]);
+        // Bind the verified ID
+        $stmt->execute([$verified_faculty_id]);
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     } catch (PDOException $e) {
         http_response_code(500);
@@ -191,8 +192,9 @@ elseif ($method === 'DELETE') {
     $id = $_GET['id'] ?? null;
     if ($id) {
         try {
-            $stmt = $conn->prepare("DELETE FROM assignments WHERE id = ?");
-            $stmt->execute([$id]);
+            // Added faculty_id check so User A can't delete User B's assignment
+            $stmt = $conn->prepare("DELETE FROM assignments WHERE id = ? AND faculty_id = ?");
+            $stmt->execute([$id, $verified_faculty_id]);
             echo json_encode(["message" => "Deleted"]);
         } catch (PDOException $e) {
             http_response_code(500);

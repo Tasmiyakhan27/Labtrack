@@ -5,16 +5,29 @@ require '../../config/database.php';
 
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST, GET, DELETE");
+header("Access-Control-Allow-Methods: POST, GET, DELETE, OPTIONS");
+// --- UPDATED: Added Authorization to allowed headers ---
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+// --- NEW: Handle Preflight Requests for CORS ---
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$verified_faculty_id = $userData->id; 
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// --- 1. GET: Fetch Schedule (UPDATED) ---
+// --- 1. GET: Fetch Schedule ---
 if ($method === 'GET') {
-    // REMOVED: "WHERE faculty_id = ?"
-    // REASON: We need ALL data to check for batch conflicts globally.
-    // The Frontend will handle filtering for the specific faculty's view.
+    // We keep fetching all data for global batch conflict checks, 
+    // but the API is now protected by the token gatekeeper above.
     
     $sql = "SELECT * FROM timetables ORDER BY date DESC, start_time ASC";
     $stmt = $conn->prepare($sql);
@@ -24,15 +37,9 @@ if ($method === 'GET') {
     echo json_encode($result);
 }
 
-// --- 2. POST: Add New Slot (No Changes needed, already global) ---
+// --- 2. POST: Add New Slot ---
 if ($method === 'POST') {
     $data = json_decode(file_get_contents("php://input"));
-
-    if (empty($data->faculty_id) || $data->faculty_id == 0) {
-    http_response_code(403); // Forbidden
-    echo json_encode(["message" => "Session Error: Faculty ID is missing. Please re-login."]);
-    exit();
-}
 
     // CONFLICT CHECK: Checks global table for overlaps
     $checkSql = "SELECT * FROM timetables 
@@ -66,7 +73,7 @@ if ($method === 'POST') {
     
     try {
         $stmt->execute([
-            ':fid' => $data->faculty_id,
+            ':fid' => $verified_faculty_id, // --- SECURED: Uses token ID instead of frontend ID ---
             ':sub' => $data->subject,
             ':grade' => $data->grade,
             ':batch' => $data->batch,
@@ -83,14 +90,18 @@ if ($method === 'POST') {
     }
 }
 
-// --- 3. DELETE (No Change) ---
+// --- 3. DELETE ---
 if ($method === 'DELETE') {
     $id = isset($_GET['id']) ? $_GET['id'] : null;
     if($id) {
-        $sql = "DELETE FROM timetables WHERE id = ?";
+        // --- SECURED: Ensures the faculty can only delete THEIR OWN slots ---
+        $sql = "DELETE FROM timetables WHERE id = ? AND faculty_id = ?";
         $stmt = $conn->prepare($sql);
-        if($stmt->execute([$id])) {
+        if($stmt->execute([$id, $verified_faculty_id])) {
             echo json_encode(["message" => "Slot Deleted"]);
+        } else {
+            http_response_code(403);
+            echo json_encode(["message" => "Unauthorized to delete this slot"]);
         }
     }
 }

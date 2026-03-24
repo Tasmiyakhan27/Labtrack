@@ -8,18 +8,29 @@ error_reporting(E_ALL);
 
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: GET");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+// --- NEW: Added Authorization to allowed headers ---
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-// 2. INCLUDE DATABASE
+// --- NEW: Handle Preflight Requests for CORS ---
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+// 2. INCLUDE DATABASE & MIDDLEWARE
 if (!file_exists('../../config/database.php')) {
     http_response_code(500);
     echo json_encode(["message" => "Critical: database.php not found."]);
     exit();
 }
 require '../../config/database.php';
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
 
-// 3. GET FACULTY ID
-$faculty_id = isset($_GET['faculty_id']) ? $_GET['faculty_id'] : 1;
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$faculty_id = $userData->id; 
 
 try {
     $response = [];
@@ -36,7 +47,6 @@ try {
 
     // --- METRIC 2: ACTIVE ASSIGNMENTS ---
     // (Assignments where deadline is in the future)
-    // FIX: Changed 'due_date' to 'deadline'
     $sqlActive = "SELECT COUNT(*) as count FROM assignments 
                   WHERE faculty_id = ? AND deadline >= NOW()";
     $stmt = $conn->prepare($sqlActive);
@@ -90,6 +100,7 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(["message" => "Database Error: " . $e->getMessage()]);
+    // Generic error message for deployment security
+    echo json_encode(["message" => "Database Error occurred."]);
 }
 ?>

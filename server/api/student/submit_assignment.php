@@ -1,91 +1,63 @@
 <?php
 // server/api/submit_assignment.php
 
+// 1. MANDATORY CORS HEADERS (Must be at the absolute top)
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST");
-header("Content-Type: application/json");
-header("Access-Control-Allow-Methods: POST, GET, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
-include_once '../../config/database.php';
-
-// 1. CONFIGURATION: COLLEGE LAB SECURITY
-// Only allow submissions from these IP prefixes.
-//  '::1' allow you to test on the server machine itself.
-// Replace '192.168.1' with your actual College Lab IP prefix.
-$ALLOWED_NETWORKS = ['192.168.1', '192.168.1.5', '127.0.0.1', '::1']; 
-
-// Set this to TRUE to enforce the IP check. 
-// Set to FALSE if you are testing from home/mobile.
-//$ENFORCE_LAB_IP = true; 
-$ENFORCE_LAB_IP = false;
-
-function isAllowedIP($ip, $allowed_networks) {
-    foreach ($allowed_networks as $network) {
-        if (strpos($ip, $network) === 0) return true;
-    }
-    return false;
+// 2. THE HANDSHAKE (Fixes the "Preflight" error in your screenshot)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit(); // Stop here for the preflight check
 }
 
-// Response Wrapper
-$response = ["success" => false, "message" => "Unknown error"];
+// 3. NOW PROCEED WITH LOGIC
+include_once '../../config/database.php';
+include_once '../../middleware/auth.php'; 
 
-// 2. REQUEST HANDLING
+try {
+    // Identify student from token
+    $userData = verifyToken(); 
+    $student_id = $userData->id;
+    $student_grade = $userData->grade;
+    $student_batch = $userData->batch;
+} catch (Exception $e) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "message" => "Session Expired."]);
+    exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
-    // --- A. IP CHECK ---
-    $userIP = $_SERVER['REMOTE_ADDR'];
-    if ($ENFORCE_LAB_IP && !isAllowedIP($userIP, $ALLOWED_NETWORKS)) {
-        http_response_code(403); // Forbidden
-        echo json_encode([
-            "success" => false, 
-            "message" => "Access Denied: You must be connected to the College Lab Network to submit. Your IP: $userIP"
-        ]);
-        exit(); 
-    }
-
-    // --- B. GET INPUT DATA ---
     $assignment_id = $_POST['assignment_id'] ?? null;
-    $student_id    = $_POST['student_id'] ?? null;
     $link_url      = $_POST['link'] ?? null;
-    $code_content  = $_POST['code'] ?? null; // From Piston Compiler
+    $code_content  = $_POST['code'] ?? null; 
     
-    // --- C. FILE UPLOAD HANDLING ---
+    // File Handling
     $file_path = null;
     if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = '../uploads/submissions/';
+        $uploadDir = '../../uploads/submissions/'; 
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
         
-        // Clean filename to prevent issues
-        $cleanName = basename($_FILES['file']['name']);
-        $fileName = time() . '_' . $cleanName;
-        
+        $fileName = time() . '_' . $student_id . '_' . basename($_FILES['file']['name']);
         if (move_uploaded_file($_FILES['file']['tmp_name'], $uploadDir . $fileName)) {
             $file_path = 'uploads/submissions/' . $fileName;
         }
     }
 
-    // --- D. DATABASE OPERATIONS ---
-    if ($assignment_id && $student_id) {
+    if ($assignment_id) {
         try {
-            $conn->beginTransaction(); // Start Safety Transaction
+            $conn->beginTransaction();
 
-            // 1. Check Deadline (Mark as Late if needed)
+            // Fetch deadline to determine status
             $stmt = $conn->prepare("SELECT deadline FROM assignments WHERE id = ?");
             $stmt->execute([$assignment_id]);
             $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            $status = 'Submitted';
-            if ($assignment && new DateTime() > new DateTime($assignment['deadline'])) {
-                $status = 'Late';
-            }
+            $status = (new DateTime() > new DateTime($assignment['deadline'])) ? 'Late' : 'Submitted';
 
-            // 2. Insert Submission Record
-            // Here we do simple insert for history.
-            $sql = "INSERT INTO submissions 
-                    (assignment_id, student_id, file_path, link_url, code_content, status) 
+            // Insert Submission
+            $sql = "INSERT INTO submissions (assignment_id, student_id, file_path, link_url, code_content, status) 
                     VALUES (:aid, :sid, :file, :link, :code, :status)";
-            
             $stmt = $conn->prepare($sql);
             $stmt->execute([
                 ':aid' => $assignment_id,
@@ -96,67 +68,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':status' => $status
             ]);
 
-            // 3. SMART ATTENDANCE LOGIC
-            // Only mark present if submitting during an active lab session
-            
-            // Get Student Info
-            $stuStmt = $conn->prepare("SELECT grade, batch FROM students WHERE id = ?");
-            $stuStmt->execute([$student_id]);
-            $student = $stuStmt->fetch(PDO::FETCH_ASSOC);
+            // Auto-Attendance Check
+            $timeSql = "SELECT id, subject_name FROM timetables 
+                        WHERE grade = :grade AND batch = :batch AND day_of_week = :day 
+                        AND start_time <= :time AND end_time >= :time LIMIT 1";
+            $timeStmt = $conn->prepare($timeSql);
+            $timeStmt->execute([
+                ':grade' => $student_grade, ':batch' => $student_batch, 
+                ':day' => date('l'), ':time' => date('H:i:s')
+            ]);
+            $activeClass = $timeStmt->fetch(PDO::FETCH_ASSOC);
 
-            $attendanceMsg = "";
-
-            if ($student) {
-                $currentDay  = date('l');      // e.g., "Monday"
-                $currentTime = date('H:i:s');  // e.g., "14:30:00"
-
-                // Check Timetable
-                $timeSql = "SELECT id, subject_name FROM timetables 
-                            WHERE grade = :grade 
-                            AND batch = :batch 
-                            AND day_of_week = :day 
-                            AND start_time <= :time 
-                            AND end_time >= :time 
-                            LIMIT 1";
-                
-                $timeStmt = $conn->prepare($timeSql);
-                $timeStmt->execute([
-                    ':grade' => $student['grade'], 
-                    ':batch' => $student['batch'], 
-                    ':day'   => $currentDay, 
-                    ':time'  => $currentTime
-                ]);
-                $activeClass = $timeStmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($activeClass) {
-                    // Active Class Found! Mark Present.
-                    $today = date('Y-m-d');
-                    
-                    // INSERT IGNORE prevents crashing if they submit twice in same class
-                    $attSql = "INSERT IGNORE INTO attendance (student_id, timetable_id, date, status) 
-                               VALUES (?, ?, ?, 'Present')";
-                    $attStmt = $conn->prepare($attSql);
-                    $attStmt->execute([$student_id, $activeClass['id'], $today]);
-                    
-                    $attendanceMsg = " & Marked Present for " . $activeClass['subject_name'];
-                }
+            if ($activeClass) {
+                $attSql = "INSERT IGNORE INTO attendance (student_id, timetable_id, date, status) VALUES (?, ?, ?, 'Present')";
+                $conn->prepare($attSql)->execute([$student_id, $activeClass['id'], date('Y-m-d')]);
             }
 
-            $conn->commit(); // Save All
-            
-            $response = [
-                "success" => true, 
-                "message" => "Work Submitted Successfully" . $attendanceMsg . "!"
-            ];
+            $conn->commit();
+            echo json_encode(["success" => true, "message" => "Successfully Submitted!"]);
 
         } catch (Exception $e) {
-            $conn->rollBack(); // Undo All on Error
-            $response["message"] = "Database Error: " . $e->getMessage();
+            if ($conn->inTransaction()) $conn->rollBack();
+            http_response_code(500);
+            echo json_encode(["success" => false, "message" => "Database error occurred."]);
         }
-    } else {
-        $response["message"] = "Missing Assignment ID or Student ID.";
     }
 }
-
-echo json_encode($response);
 ?>

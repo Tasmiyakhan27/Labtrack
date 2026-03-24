@@ -8,6 +8,7 @@ error_reporting(E_ALL);
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Content-Type: application/json"); 
+// --- UPDATED: Added Authorization to allowed headers ---
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
 // Handle Preflight
@@ -37,25 +38,26 @@ include_once $configPath;
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$verified_faculty_id = $userData->id;
+
 // 3. SECURITY CHECK: Verify HOD Role
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // Check if ID was sent
-    if (!isset($_POST['uploader_id'])) {
-        http_response_code(403); 
-        echo json_encode(["success" => false, "message" => "Unauthorized: No User ID provided."]);
-        exit();
-    }
-
-    $uploaderId = $_POST['uploader_id'];
+    // We no longer rely on $_POST['uploader_id'] for security
 
     try {
         if (!isset($conn)) {
              throw new Exception("Database connection failed.");
         }
 
+        // Check role using the SECURE ID from the token
         $stmt = $conn->prepare("SELECT role FROM faculty WHERE id = ? LIMIT 1");
-        $stmt->execute([$uploaderId]);
+        $stmt->execute([$verified_faculty_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         // Strict Check: Must be HOD (lowercase to match database enum)
@@ -133,5 +135,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
          echo json_encode(["success" => false, "message" => "No file uploaded."]);
     }
-}
+}       
 ?>

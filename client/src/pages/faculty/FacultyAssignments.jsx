@@ -41,12 +41,24 @@ const FacultyAssignments = () => {
     }
 
     try {
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
       const userId = user.id || user.faculty_id || 1; 
-      const res = await axios.get(`http://localhost:8000/server/api/faculty/assignment.php?faculty_id=${userId}`);
+      
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      const res = await axios.get(`http://localhost:8000/server/api/faculty/assignment.php?faculty_id=${userId}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+      });
       setAssignments(res.data);
       setLoading(false);
     } catch (err) {
       console.error("Fetch Error:", err);
+      // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+      if (err.response && err.response.status === 401) {
+          navigate('/login/faculty');
+      }
       setLoading(false);
     }
   };
@@ -120,14 +132,23 @@ const FacultyAssignments = () => {
     
     // Append Marks
     data.append('min_marks', formData.min_marks); 
-    data.append('max_marks', formData.max_marks);         
+    data.append('max_marks', formData.max_marks);        
 
     if (formData.file) {
       data.append('attachment', formData.file);
     }
 
     try {
-      await axios.post('http://localhost:8000/server/api/faculty/assignment.php', data);
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+      
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      await axios.post('http://localhost:8000/server/api/faculty/assignment.php', data, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+            // Note: Axios automatically sets Content-Type to multipart/form-data when using FormData
+        }
+      });
       
       alert(editId ? "Assignment Updated Successfully!" : "Assignment Posted Successfully!");
       fetchAssignments();
@@ -142,7 +163,11 @@ const FacultyAssignments = () => {
       });
     } catch (err) {
       console.error(err);
-      alert(editId ? "Failed to update assignment." : "Failed to post assignment.");
+      if (err.response && err.response.status === 401) {
+          navigate('/login/faculty');
+      } else {
+          alert(editId ? "Failed to update assignment." : "Failed to post assignment.");
+      }
     }
   };
 
@@ -150,10 +175,22 @@ const FacultyAssignments = () => {
   const handleDelete = async (id) => {
     if(!window.confirm("Delete this assignment?")) return;
     try {
-        await axios.delete(`http://localhost:8000/server/api/faculty/assignment.php?id=${id}`);
+        // --- NEW: GET TOKEN ---
+        const token = localStorage.getItem('token');
+        
+        // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+        await axios.delete(`http://localhost:8000/server/api/faculty/assignment.php?id=${id}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         fetchAssignments();
     } catch (err) {
-        alert("Failed to delete.");
+        if (err.response && err.response.status === 401) {
+            navigate('/login/faculty');
+        } else {
+            alert("Failed to delete.");
+        }
     }
   };
 

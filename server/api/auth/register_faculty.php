@@ -34,26 +34,34 @@ if(
     exit();
 }
 
-// --- 5. SERVER-SIDE SECURITY CHECK (NEW) ---
-// We do not trust the frontend. We verify the keys here again.
-
+// --- 5. SERVER-SIDE SECURITY CHECK ---
 $role = isset($data->role) ? $data->role : 'faculty';
 $secretCode = isset($data->secret_code) ? $data->secret_code : '';
 
+// Pull from environment variables (Safe on server)
+$hod_env_secret = getenv('HOD_SECRET_CODE');
+$faculty_env_secret = getenv('FACULTY_SECRET_CODE');
+
+// Prevent registration if server is misconfigured and missing the secret keys
+if (!$hod_env_secret || !$faculty_env_secret) {
+    http_response_code(500);
+    echo json_encode(["message" => "Server Configuration Error: Secret keys not set."]);
+    exit();
+}
+
 if ($role === 'hod') {
-    if ($secretCode !== 'ADMIN123') {
-        http_response_code(403); // Forbidden
+    if ($secretCode !== $hod_env_secret) {
+        http_response_code(403); 
         echo json_encode(["message" => "Security Alert: Invalid HOD Authorization Key."]);
         exit();
     }
 } elseif ($role === 'faculty') {
-    if ($secretCode !== 'FACULTY123') {
-        http_response_code(403); // Forbidden
+    if ($secretCode !== $faculty_env_secret) {
+        http_response_code(403); 
         echo json_encode(["message" => "Security Alert: Invalid Staff Verification Key."]);
         exit();
     }
 } else {
-    // If someone tries to send a weird role like "superadmin"
     http_response_code(400);
     echo json_encode(["message" => "Invalid Role selected."]);
     exit();
@@ -69,7 +77,7 @@ try {
     
     if($checkStmt->rowCount() > 0){
         http_response_code(400);
-        echo json_encode(["message" => "User already exists"]);
+        echo json_encode(["message" => "User already exists with this Email or ID"]);
         exit();
     }
 

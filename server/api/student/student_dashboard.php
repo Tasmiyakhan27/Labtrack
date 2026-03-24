@@ -1,14 +1,31 @@
 <?php
+// server/api/student/student_dashboard.php (Update filename as needed)
+
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Content-Type: application/json");
+// --- NEW: Added Authorization to allowed headers ---
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+// --- NEW: Handle Preflight Requests for CORS ---
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
 
 include_once '../../config/database.php';
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$verified_student_id = $userData->id; 
 
 // Keep the Indian Timezone
 date_default_timezone_set('Asia/Kolkata'); 
 
-$student_id = $_GET['student_id'] ?? '';
+// We no longer trust $_GET['student_id']
+$student_id = $verified_student_id; 
 $grade = $_GET['grade'] ?? '';
 $batch = $_GET['batch'] ?? '';
 

@@ -7,6 +7,7 @@ import {
   Users, AlertCircle, Upload // Added Upload Icon
 } from 'lucide-react';
 
+
 const FacultyDashboard = () => {
   const navigate = useNavigate();
   
@@ -26,8 +27,16 @@ const FacultyDashboard = () => {
   // --- REAL-TIME DATA FETCHING ---
   const fetchDashboardData = async () => {
     try {
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
       const facultyId = user ? user.id : 1;
-      const response = await axios.get(`http://localhost:8000/server/api/faculty/dashboard_data.php?faculty_id=${facultyId}`);
+      
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      const response = await axios.get(`http://localhost:8000/server/api/faculty/dashboard_data.php?faculty_id=${facultyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
       if (response.data) {
           setDashboardData(response.data);
@@ -35,6 +44,10 @@ const FacultyDashboard = () => {
       setLoading(false);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
+      // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+      if (error.response && error.response.status === 401) {
+          navigate('/login/faculty');
+      }
       setLoading(false);
     }
   };

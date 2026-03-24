@@ -1,29 +1,20 @@
 <?php
-// server/api/student/get_assignment_details.php
-
-// 1. HANDLE CORS
+// 1. Headers (Allowing access from the React app)
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json; charset=UTF-8");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
-// 2. HANDLE PREFLIGHT
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { exit(0); }
 
 include_once '../../config/database.php';
+include_once '../../middleware/auth.php'; 
 
+// Verify the student is logged in
+$userData = verifyToken(); 
 $id = $_GET['id'] ?? null;
 
-if (!$id) {
-    echo json_encode(["success" => false, "message" => "Missing Assignment ID"]);
-    exit;
-}
-
 try {
-    // 3. Fetch Assignment Data
+    // A. FETCH ASSIGNMENT INFO FIRST
     $stmt = $conn->prepare("SELECT * FROM assignments WHERE id = ?");
     $stmt->execute([$id]);
     $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -33,68 +24,49 @@ try {
         exit;
     }
 
-    // ======================================================
-    // 4. STRICT SECURITY CHECKS (ACTIVE)
-    // ======================================================
-
-    // --- A. IP ADDRESS CHECK ---
-    // Update this list with your actual Lab IP range
-    $ALLOWED_NETWORKS = ['192.168.1.6','10.249.232.115', '127.0.0.1', '::1']; 
+    // B. GUARD 1: IP CHECK (Is the student in the lab?)
+    $ALLOWED_NETWORKS = ['192.168.1.8', '127.0.0.1', '::1']; 
     $userIP = $_SERVER['REMOTE_ADDR'];
 
-    function isAllowedIP($ip, $allowed_networks) {
-        foreach ($allowed_networks as $network) {
-            // Check if user IP starts with the allowed network prefix
-            if (strpos($ip, $network) === 0) return true;
-        }
-        return false;
+    $is_lab_ip = false;
+    foreach ($ALLOWED_NETWORKS as $net) {
+        if (strpos($userIP, $net) === 0) { $is_lab_ip = true; break; }
     }
 
-    if (!isAllowedIP($userIP, $ALLOWED_NETWORKS)) {
-        echo json_encode([
-            "success" => false, 
-            "message" => "🚫 Location Restricted: You must be connected to the College Lab Network ($userIP)."
-        ]);
+    if (!$is_lab_ip) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "🚫 ACCESS DENIED: This workspace is only available on the College Lab Network."]);
         exit;
     }
 
-    // --- B. TIMETABLE CHECK ---
-    date_default_timezone_set('Asia/Kolkata'); 
-    $currentDate = date('Y-m-d'); 
-    $currentTime = date('H:i:s'); 
+    // C. GUARD 2: TIMETABLE CHECK (Is it the right time for this subject?)
+    date_default_timezone_set('Asia/Kolkata');
+    $day = date('l'); 
+    $now = date('H:i:s');
 
-    // Check if class is scheduled RIGHT NOW
-    $sql = "SELECT id FROM timetables 
-            WHERE grade = :grade 
-            AND batch = :batch
-            AND subject_name = :subject
-            AND date = :todayDate       
-            AND start_time <= :now 
-            AND end_time >= :now";
-
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([
-        ':grade'    => $assignment['grade'],
-        ':batch'    => $assignment['batch'],
-        ':subject'  => $assignment['subject'],
-        ':todayDate'=> $currentDate,
-        ':now'      => $currentTime
+    $timeSql = "SELECT id FROM timetables 
+                WHERE grade = :grade AND batch = :batch AND subject_name = :subject 
+                AND day_of_week = :day AND start_time <= :now AND end_time >= :now 
+                LIMIT 1";
+    
+    $timeStmt = $conn->prepare($timeSql);
+    $timeStmt->execute([
+        ':grade'   => $userData->grade,
+        ':batch'   => $userData->batch,
+        ':subject' => $assignment['subject'],
+        ':day'     => $day,
+        ':now'     => $now
     ]);
 
-    $activeSession = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$activeSession) {
-        echo json_encode([
-            "success" => false, 
-            "message" => "⏳ Locked: This assignment is only available during the scheduled lab time."
-        ]);
+    if (!$timeStmt->fetch()) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "⏳ LOCKED: You can only work on this during your scheduled $assignment[subject] lab slot."]);
         exit;
     }
 
-    // 5. Return Success (Only if checks pass)
+    // IF BOTH PASS: Give the student the assignment data
     echo json_encode(["success" => true, "data" => $assignment]);
 
 } catch (Exception $e) {
-    echo json_encode(["success" => false, "message" => "Server Error: " . $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => "Server Error"]);
 }
-?>

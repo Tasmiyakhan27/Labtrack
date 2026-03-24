@@ -4,7 +4,7 @@ import { Upload, Link as LinkIcon, CheckCircle, AlertCircle, FileText, X } from 
 
 const FacultyResources = () => {
   const navigate = useNavigate();
-  // Retrieve user for the profile icon AND for the faculty_id
+  // Retrieve user for the profile icon
   const user = JSON.parse(localStorage.getItem('facultyUser'));
 
   const [resourceType, setResourceType] = useState('file'); 
@@ -40,7 +40,7 @@ const FacultyResources = () => {
     setStatus({ type: 'loading', message: 'Publishing resource...' });
 
     const formData = new FormData();
-    // ✅ ADDED THIS LINE: Send the logged-in faculty's ID
+    // faculty_id is sent but PHP will prioritize the JWT token for security
     formData.append('faculty_id', user ? user.id : 1); 
     formData.append('title', title);
     formData.append('type', resourceType);
@@ -57,12 +57,25 @@ const FacultyResources = () => {
     if (selectedClasses.length === 0) return setStatus({ type: 'error', message: 'Select at least one class.' });
 
     try {
-      // Note: Ensure the filename matches your PHP file
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+
       const response = await fetch('http://localhost:8000/server/api/faculty/add_resources.php', {
         method: 'POST',
+        headers: {
+            // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+            'Authorization': `Bearer ${token}`
+            // Note: Don't set Content-Type manually when using FormData in fetch()
+        },
         body: formData,
       });
       
+      // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+      if (response.status === 401) {
+          navigate('/login/faculty');
+          return;
+      }
+
       const data = await response.json();
       
       if (data.success) {

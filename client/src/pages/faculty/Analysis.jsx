@@ -10,6 +10,7 @@ import { Filter, ArrowLeft, RefreshCw } from 'lucide-react';
 const AnalysisDashboard = () => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
+  // Note: facultyId is kept for fallback, but backend prioritizes token
   const facultyId = user?.id || 1;
 
   // --- STATE ---
@@ -21,10 +22,22 @@ const AnalysisDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:8000/server/api/faculty/analysis.php?faculty_id=${facultyId}&grade=${filters.grade}&batch=${filters.batch}`);
+      // --- NEW: GET TOKEN ---
+      const token = localStorage.getItem('token');
+
+      // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+      const res = await axios.get(`http://localhost:8000/server/api/faculty/analysis.php?faculty_id=${facultyId}&grade=${filters.grade}&batch=${filters.batch}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+      });
       setData(res.data);
     } catch (err) {
       console.error("Analytics Error:", err);
+      // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+      if (err.response && err.response.status === 401) {
+          navigate('/login/faculty');
+      }
     } finally {
       setLoading(false);
     }
@@ -41,24 +54,24 @@ const AnalysisDashboard = () => {
       {/* HEADER */}
       <header className="h-16 border-b border-gray-800 flex items-center justify-between px-8 bg-gray-950">
          
-          {/* Menu Links */}
-          <nav className="flex gap-8 text-sm font-medium text-gray-400">
-            <span className="hover:text-white cursor-pointer "
-            onClick={()=>navigate('/faculty/dashboard')}>
-            Faculty Dashboard</span>
-            <span className="hover:text-white cursor-pointer transition-colors" 
-            onClick={()=>navigate('/faculty/timetable')}>
-                Timetable Management</span>
-            <span className="hover:text-white cursor-pointer transition-colors " 
-            onClick={()=>navigate('/faculty/assignments')}> Faculty Assignments</span>
-            <span className="hover:text-white cursor-pointer transition-colors"
-            onClick={()=>navigate('/faculty/submissions')}>
-            Submissions</span>
-            <span className="hover:text-white cursor-pointer transition-colors"
-            onClick={()=>navigate('/faculty/resources')}>
-            Resources</span>
-            <span className="text-white cursor-pointer transition-colors border-b-2 border-violet-500 pb-5 pt-5">Analysis</span>
-          </nav>
+         {/* Menu Links */}
+         <nav className="flex gap-8 text-sm font-medium text-gray-400">
+           <span className="hover:text-white cursor-pointer "
+           onClick={()=>navigate('/faculty/dashboard')}>
+           Faculty Dashboard</span>
+           <span className="hover:text-white cursor-pointer transition-colors" 
+           onClick={()=>navigate('/faculty/timetable')}>
+               Timetable Management</span>
+           <span className="hover:text-white cursor-pointer transition-colors " 
+           onClick={()=>navigate('/faculty/assignments')}> Faculty Assignments</span>
+           <span className="hover:text-white cursor-pointer transition-colors"
+           onClick={()=>navigate('/faculty/submissions')}>
+           Submissions</span>
+           <span className="hover:text-white cursor-pointer transition-colors"
+           onClick={()=>navigate('/faculty/resources')}>
+           Resources</span>
+           <span className="text-white cursor-pointer transition-colors border-b-2 border-violet-500 pb-5 pt-5">Analysis</span>
+         </nav>
          {/* FILTERS */}
          <div className="flex gap-4">
             <select className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm outline-none"
@@ -69,7 +82,7 @@ const AnalysisDashboard = () => {
             <select className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm outline-none"
                 onChange={e => setFilters({...filters, batch: e.target.value})}>
                 <option value="All">All Batches</option>
-                <option value="Batch 1">Batch 1</option><option value="Batch 2">Batch 2</option>
+                <option value="B1">Batch 1</option><option value="B2">Batch 2</option><option value="B3">Batch 3</option>
             </select>
             <button onClick={fetchData} className="p-2 bg-violet-600 rounded hover:bg-violet-700"><RefreshCw size={16}/></button>
          </div>

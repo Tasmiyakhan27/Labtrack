@@ -82,18 +82,31 @@ const StudentTimetable = () => {
   // --- 3. FETCH DATA ---
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('studentUser'));
-    if (!user) {
+    // --- NEW: GET TOKEN ---
+    const token = localStorage.getItem('token');
+
+    if (!user || !token) {
         navigate('/student/login');
         return;
     }
 
-    axios.get(`http://localhost:8000/server/api/student/get_student_timetable.php?grade=${user.grade}&batch=${user.batch}`)
+    // The backend now ignores grade & batch in URL, but keeping them doesn't hurt.
+    axios.get(`http://localhost:8000/server/api/student/get_student_timetable.php?grade=${user.grade}&batch=${user.batch}`, {
+        // --- UPDATED: ADDED AUTHORIZATION HEADER ---
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
       .then(res => {
         setSchedule(res.data);
         setLoading(false);
       })
       .catch(err => {
         console.error(err);
+        // --- NEW: REDIRECT IF TOKEN EXPIRED ---
+        if (err.response && err.response.status === 401) {
+            navigate('/student/login');
+        }
         setLoading(false);
       });
   }, [navigate]);

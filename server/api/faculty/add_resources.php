@@ -1,5 +1,6 @@
 <?php
 // server/api/faculty/add_resources.php
+//require '../../middleware/auth.php'; // Load Auth Middleware (for token verification)
 
 // 1. Enable Debugging
 ini_set('display_errors', 1);
@@ -8,7 +9,8 @@ error_reporting(E_ALL);
 // 2. Setup Headers
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+// --- NEW: Added Authorization to allowed headers ---
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -23,26 +25,25 @@ if (file_exists($db_path)) {
     include_once __DIR__ . '/../../db_connect.php';
 }
 
+// --- NEW: SECURE MIDDLEWARE ---
+include_once '../../middleware/auth.php'; 
+
+// --- NEW: VERIFY TOKEN & GET REAL ID ---
+$userData = verifyToken(); 
+$verified_faculty_id = $userData->id; 
+
 $response = ["success" => false, "message" => ""];
 
 // 4. Handle POST Request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Get Inputs
-    // ✅ ADDED THIS: Capture faculty_id
-    $faculty_id = $_POST['faculty_id'] ?? null; 
+    // We no longer rely on $_POST['faculty_id'] for security
     $title = $_POST['title'] ?? '';
     $type = $_POST['type'] ?? 'link';
     $targetClasses = $_POST['target_classes'] ?? ''; 
     
     $contentPath = '';
-
-    // Validate faculty_id
-    if (!$faculty_id) {
-        $response['message'] = "Faculty ID is missing. Please re-login.";
-        echo json_encode($response);
-        exit();
-    }
 
     // 5. Handle File Upload
     if ($type === 'file') {
@@ -79,15 +80,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $contentPath = $_POST['link'] ?? '';
     }
 
-    // 6. Insert into Database (Updated SQL to include faculty_id)
+    // 6. Insert into Database
     if ($title && $contentPath && $targetClasses) {
         try {
             $sql = "INSERT INTO faculty_resources (faculty_id, title, type, content_path, target_classes) 
                     VALUES (:fid, :title, :type, :content, :classes)";
             $stmt = $conn->prepare($sql);
             
-            // ✅ Bind Parameters
-            $stmt->bindParam(':fid', $faculty_id);
+            // --- UPDATED: Bind the verified token ID ---
+            $stmt->bindParam(':fid', $verified_faculty_id);
             $stmt->bindParam(':title', $title);
             $stmt->bindParam(':type', $type);
             $stmt->bindParam(':content', $contentPath);
